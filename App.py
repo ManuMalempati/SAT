@@ -6,15 +6,9 @@ import os
 
 # main window
 tkWindow = Tk()
-tkWindow.title('Traffic system application')
+tkWindow.title('Traffic and Speed Violation System')
 tkWindow.state('zoomed')
 tkWindow.config(bg='black')
-
-# uncomment this if you want bg image for main frame
-# traffic_image = Image.open("traffic image.png")
-# photo = ImageTk.PhotoImage(traffic_image)
-# traffic_image_label = Label(tkWindow, image=photo)
-# traffic_image_label.pack(fill='both', expand='yes')
 
 # Checking if the XML file already exists
 if os.path.isfile("users.xml"):
@@ -22,7 +16,6 @@ if os.path.isfile("users.xml"):
     tree2 = ET.parse("users.xml")
     # obtain root
     root = tree2.getroot()
-
     # Perform any necessary operations on the tree2 object
     tree2.write("users.xml") 
 
@@ -83,7 +76,7 @@ def signup_frame():
     user_image_label.place(x=620, y=40)
 
     # Signup label
-    signup_label = Label(signup_frame, text="Sign up", bg='black', fg='white', font=('yu gothic ui', 13, 'bold'))
+    signup_label = Label(signup_frame, text="Register", bg='black', fg='white', font=('yu gothic ui', 13, 'bold'))
     signup_label.place(x=660, y=150)
 
     # Organisation

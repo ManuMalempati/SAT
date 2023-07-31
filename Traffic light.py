@@ -130,7 +130,8 @@ def process_window(filename):
 
         # Detector Line creation
         cv2.line(frame1, (counter_line_left_position_x,counter_line_position_y), (counter_line_right_position_x,counter_line_position_y), (0,255,0), 4) # horizontal positions specified
-
+        cv2.line(frame1, (counter_line_left_position_x,counter_line_position_y - 10), (counter_line_right_position_x,counter_line_position_y - 10), (0,255,0), 4) # horizontal positions specified
+        
         for (i,c) in enumerate(countershape): # for each vehicle
             (x,y,w,h) = cv2.boundingRect(c) # dimensions of the bounding rectangle we want to add for each vehicle
 

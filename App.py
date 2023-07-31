@@ -3,6 +3,7 @@ from PIL import ImageTk, Image
 import xml.etree.ElementTree as ET
 from cryptography.fernet import Fernet
 import os
+from tkinter import filedialog
 
 # main window
 tkWindow = Tk()
@@ -13,19 +14,19 @@ tkWindow.config(bg='black')
 # Checking if the XML file already exists
 if os.path.isfile("users.xml"):
     # Read the existing XML file via creating a tree
-    tree2 = ET.parse("users.xml")
+    tree = ET.parse("users.xml")
     # obtain root
-    root = tree2.getroot()
-    # Perform any necessary operations on the tree2 object
-    tree2.write("users.xml") 
+    root = tree.getroot()
+    # Perform any necessary operations on the tree object
+    tree.write("users.xml") 
 
 else:
     # Creating main/head root element
     root = ET.Element("users")
     # Create new XML tree
-    tree2 = ET.ElementTree(root)
-    # Writing the modified tree2 back to the XML file
-    tree2.write("users.xml")
+    tree = ET.ElementTree(root)
+    # Writing the modified tree back to the XML file
+    tree.write("users.xml")
 
 # Symmetric encryption key generated
 # Read the key from the file
@@ -160,12 +161,13 @@ def signup_frame():
         new_organisation = ET.SubElement(new_account, "organisation")
         new_username = ET.SubElement(new_account, "username")
         new_password = ET.SubElement(new_account, "password")
+        new_footage = ET.SubElement(new_account, "footage")
         new_organisation.text = organisation
         new_username.text = username
         new_password.text = password
 
         # Write the XML tree to a file
-        tree2.write("users.xml")
+        tree.write("users.xml")
 
         # encrypt updated data from original file
         encrypt_data()
@@ -276,6 +278,7 @@ def login_frame():
         for account in root.findall("account"):
             if (account.find("username").text == username) and (account.find("password").text == password):
                 current_account = account
+                home()
                 status_label.config(text="Success")
                 status_label.place(x=670, y=270)
 
@@ -305,7 +308,7 @@ def login_frame():
         if account_to_remove is not None:
             # Remove the account element from the XML tree
             root.remove(account_to_remove)
-            tree2.write("users.xml")
+            tree.write("users.xml")
             status_label.config(text="Successfully removed user")
             status_label.place(x=620, y=270)
             username_entry.delete(0, 'end')
@@ -325,6 +328,116 @@ def login_frame():
     delete.place(x=750, y=550)
 
     return login_frame
+
+# home screen
+def home():
+    global current_account
+    def switch_to_login(home):
+        current_account = None
+        home.pack_forget()
+        login_frame()
+    
+    def switch_to_traffic_signal(home):
+        home.pack_forget()
+        traffic_signal_frame()
+
+    def switch_to_speed(home):
+        home.pack_forget()
+        speed_frame()
+    
+    def switch_to_all(home):
+        home.pack_forget()
+        all_frame()
+
+    def upload_footage(footage_label):
+        global current_account, tree
+
+        # Prompt the user to select a new file path
+        file_path = filedialog.askopenfilename()
+
+        if file_path:
+            # Update the footage attribute in the current_account
+            current_account.attrib["footage"] = file_path
+            tree.write("users.xml")
+            encrypt_data()
+            decrypt_data()
+
+            footage_label.config(text="Uploaded footage: " + os.path.basename(file_path))
+
+    home = Frame(tkWindow, bg='black', width=950, height=600)
+    home.place(x=200, y=70)
+
+    name = current_account.find("username").text
+
+    welcome_label = Label(home, text="Welcome " + name + "!", bg='black', fg='white', font=('yu gothic ui', 13, 'bold'))
+    welcome_label.place(x=420, y=100)
+
+    Traffic_signal_button = Button(home, text='Traffic signal violations', font=('yu gothic ui', 13, 'bold'), width=20, bd=0, bg='blue', cursor='hand2', fg='white', command=lambda: switch_to_traffic_signal(home))
+    Traffic_signal_button.place(x=380, y=170)
+
+    speed_button = Button(home, text='Speed violations', font=('yu gothic ui', 13, 'bold'), width=20, bd=0, bg='blue', cursor='hand2', fg='white', command=lambda: switch_to_speed(home))
+    speed_button.place(x=380, y=240)
+
+    all_violations_button = Button(home, text='All violations', font=('yu gothic ui', 13, 'bold'), width=20, bd=0, bg='blue', cursor='hand2', fg='white', command=lambda: switch_to_all(home))
+    all_violations_button.place(x=380, y=310)
+
+    upload_button = Button(home, text='Upload footage', font=('yu gothic ui', 13, 'bold'), width=20, bd=0, bg='blue', cursor='hand2', fg='white', command=lambda: upload_footage(footage_label))
+    upload_button.place(x=380, y=380)
+
+    footage_label = Label(home, text="Uploaded footage: " + os.path.basename(current_account.attrib.get("footage", "")), bg='black', fg='white', font=('yu gothic ui', 13, 'bold'))
+    footage_label.place(x=367, y=432)
+
+    log_out = Button(home, text='Log out', font=('yu gothic ui', 13, 'bold'), width=10, bd=0, bg='black', cursor='hand2', fg='white', command=lambda: switch_to_login(home))
+    log_out.place(x=430, y=470)
+
+# Traffic violations frame
+def traffic_signal_frame():
+    def switch_to_home():
+        traffic_signal_frame.pack_forget()
+        home()
+
+    traffic_signal_frame = Frame(tkWindow, bg='black', width=950, height=600)
+    traffic_signal_frame.place(x=200, y=70)
+
+    title_label = Label(traffic_signal_frame, text="Traffic Signal Violations", bg='black', fg='white', font=('yu gothic ui', 13, 'bold'))
+    title_label.place(x=420, y=100)
+
+    #ADDING A SCROLLBAR
+    myscrollbar=Scrollbar(traffic_signal_frame, orient="vertical")
+    myscrollbar.pack(side="right",fill="y")
+
+    back = Button(traffic_signal_frame, text='Back', font=('yu gothic ui', 13, 'bold'), width=10, bd=0, bg='black', cursor='hand2', fg='white', command=switch_to_home)
+    back.place(x=430, y=450)
+
+# speed violations frame
+def speed_frame():
+    def switch_to_home(speed_frame):
+        speed_frame.pack_forget()
+        home()
+    
+    speed_frame = Frame(tkWindow, bg='black', width=950, height=600)
+    speed_frame.place(x=200, y=70)
+
+    title_label = Label(speed_frame, text="Speed Violations", bg='black', fg='white', font=('yu gothic ui', 13, 'bold'))
+    title_label.place(x=420, y=100)
+    
+    back = Button(speed_frame, text='Back', font=('yu gothic ui', 13, 'bold'), width=10, bd=0, bg='black', cursor='hand2', fg='white', command=lambda: switch_to_home(speed_frame))
+    back.place(x=430, y=450) 
+
+# all violations frame
+def all_frame():
+    def switch_to_home(all_frame):
+        all_frame.pack_forget()
+        home()
+    
+    all_frame = Frame(tkWindow, bg='black', width=950, height=600)
+    all_frame.place(x=200, y=70)
+
+    title_label = Label(all_frame, text="All Violations", bg='black', fg='white', font=('yu gothic ui', 13, 'bold'))
+    title_label.place(x=420, y=100)
+    
+    back = Button(all_frame, text='Back', font=('yu gothic ui', 13, 'bold'), width=10, bd=0, bg='black', cursor='hand2', fg='white', command=lambda: switch_to_home(all_frame))
+    back.place(x=430, y=450)  
 
 # First display login frame
 login_frame()

@@ -5,10 +5,27 @@ from PIL import Image
 import os
 import xml.etree.ElementTree as ET
 from cryptography.fernet import Fernet
+# from Licence import licence_plate
 
-def process_window(filename):
-    # Accessing WebCam
-    cap = cv2.VideoCapture(filename)
+def process_signal_footage(name, footage):
+
+    filename_with_extension = os.path.basename(footage)
+    print(filename_with_extension)
+
+    cap = cv2.VideoCapture(filename_with_extension)
+
+    # Read the existing XML file via creating a tree
+    tree = ET.parse(f"{name}_traffic_signal.xml")
+    # obtain root
+    violations = tree.getroot()
+    # clear previous violations for fresh record
+    violations.clear()
+    xml_file_path = f"{name}_traffic_signal.xml"
+    deleted_addresses = [evidence.text for evidence in ET.parse(xml_file_path).iter('Evidence') if os.path.exists(evidence.text)]
+    [os.remove(evidence) for evidence in deleted_addresses]
+
+    # Perform any necessary operations on the tree object
+    tree.write(f"{name}_traffic_signal.xml")
 
     # define the color thresholds for red and green
     red_lower = (0, 0, 150)
@@ -146,13 +163,28 @@ def process_window(filename):
             if center[0] > counter_line_left_position_x and center[0] < counter_line_right_position_x and center[1] < (counter_line_position_y + 6) and center[1] > (counter_line_position_y - 6): # If vehicle within line
                 if colour == "RED":
                     if not last_detection_status: # If vehicle has not already been detected
+                        violations_list = violations.findall("violation")
                         # capture screenshot with image name as detection(counter length)
-                        capture_screenshot(frame1, f"detection{len(detection_details) + 1}.png")
-                        detection_image = f"detection{len(detection_details) + 1}.png"
+                        capture_screenshot(frame1, f"detection_{name}_{len(violations_list) + 1}.png")
+                        # saving the captured image
+                        detection_image = f"detection_{name}_{len(violations_list) + 1}.png"
+                        # time of capture
                         detection_time = display_time()
                         detection_details.append({"Reg": "", "Time": detection_time[:10], "Date": detection_time[11:], "Location": location, "Evidence": detection_image}) # append timestamp
+
+                        new_violation = ET.SubElement(violations, "violation")
+
+                        # Iterate through each dictionary in the detection_details list
+                        for detection_dict in detection_details:
+                            # Iterate through the dictionary and create sub-elements for each key-value pair
+                            for key, value in detection_dict.items():
+                                sub_element = ET.SubElement(new_violation, key)
+                                sub_element.text = str(value)  # Convert the value to a string before storing
+
+                        # update file with contents
+                        tree.write(f"{name}_traffic_signal.xml")
+
                         cv2.line(frame1, (counter_line_left_position_x,counter_line_position_y), (counter_line_right_position_x,counter_line_position_y), (0,127,255), 4) # line that flashes when object/vehicle detected
-                        print(detection_details)
                     last_detection_status = True
                 else:
                     last_detection_status = False
@@ -179,5 +211,5 @@ def process_window(filename):
     cv2.destroyAllWindows()
     cap.release()
 
-process_window("yellow.mp4")
-process_window("red.mp4")
+# process_signal_footage("yellow.mp4")
+# process_signal_footage("red.mp4")

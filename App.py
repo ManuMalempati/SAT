@@ -5,8 +5,29 @@ from cryptography.fernet import Fernet
 import os
 from tkinter import filedialog
 from Trafficlight import process_signal_footage
+from Speed import process_speed_footage
 import threading
 
+#------------------------------ VARIABLES SUBJECT TO CHANGE FOR EACH VIDEO-------------------------
+# Focus postion of traffic lights (subject to change), rectangle dimensions 
+# red & yellow dimensions: 60, 150, 200, 300 
+# video2 dimensions: 600, 850, 0, 600
+focus_x_left, focus_x_right, focus_y_top, focus_y_bottom = 80, 150, 220, 300
+
+# cm/s
+speed_limit = 50
+
+# video1 dimensions: 550, 700, 1200
+# Position of line used to count the vehicles (subject to change depending on road and location of intersection)
+counter_line_position_y, counter_line_left_position_x, counter_line_right_position_x = 500, 50, 600  # vertical position, left and right ends
+
+# actual dimensions of refernce object in cm
+actual_reference_object_width = 15
+actual_reference_object_height = 15
+
+# Location coordinates
+location = "-37.889034, 144.652779"
+#------------------------------ VARIABLES SUBJECT TO CHANGE FOR EACH VIDEO-------------------------
 
 # main window
 tkWindow = Tk()
@@ -218,7 +239,7 @@ def signup_frame():
 
 # Login screen
 def login_frame():
-    global current_account
+    global current_account, focus_x_left, focus_x_right, focus_y_top, focus_y_bottom, speed_limit, counter_line_position_y, counter_line_left_position_x, counter_line_right_position_x, actual_reference_object_width, actual_reference_object_height, location
     # Switches to signup frame
     def switch_to_signup(signup_frame):
         login_frame.pack_forget()
@@ -333,10 +354,15 @@ def login_frame():
             deleted_addresses = [evidence.text for evidence in ET.parse(xml_file_path).iter('Evidence') if os.path.exists(evidence.text)]
             [os.remove(evidence) for evidence in deleted_addresses]
 
+            xml_file_path = f"{username}_speed.xml"
+            deleted_addresses = [evidence.text for evidence in ET.parse(xml_file_path).iter('Evidence') if os.path.exists(evidence.text)]
+            [os.remove(evidence) for evidence in deleted_addresses]
+
             # Removing all associated files of the user
             os.remove(f"{username}_traffic_signal.xml")
             os.remove(f"{username}_speed.xml")
             os.remove(f"{username}_all.xml")
+
             status_label.config(text="Successfully removed user")
             status_label.place(x=620, y=270)
             username_entry.delete(0, 'end')
@@ -381,6 +407,7 @@ def home():
         global current_account, tree
 
         def process_and_update_footage():
+            global focus_x_left, focus_x_right, focus_y_top, focus_y_bottom, speed_limit, counter_line_position_y, counter_line_left_position_x, counter_line_right_position_x, actual_reference_object_width, actual_reference_object_height, location
             # Update the footage attribute in the current_account
             current_account.attrib["footage"] = file_path
             tree.write("users.xml")
@@ -391,7 +418,10 @@ def home():
             name = current_account.find("username").text
             footage_file = current_account.attrib.get("footage")
             # Pass the footage that the user has selected and wants to process and their name in order to update the associated traffic signal file
-            process_signal_footage(name, footage_file)
+            # process footage for traffic signal violations by calling the function from Trafflilight.py file
+            process_signal_footage(name, footage_file, focus_x_left, focus_x_right, focus_y_top, focus_y_bottom, counter_line_position_y, counter_line_left_position_x, counter_line_right_position_x, location)
+            # process footage for speed violations by calling the function from Speed.py file
+            process_speed_footage(name, footage_file, focus_x_left, focus_x_right, focus_y_top, focus_y_bottom, speed_limit, counter_line_position_y, counter_line_left_position_x, counter_line_right_position_x, actual_reference_object_width, actual_reference_object_height, location)
 
             # Update the footage label after processing is done
             footage_label.config(text="Uploaded footage: " + os.path.basename(file_path))
@@ -409,7 +439,8 @@ def home():
         elif file_path:
             footage_label.config(text="Please select an MP4 file")
         else:
-            footage_label.config(text="No file selected")
+            # footage_label.config(text="No file selected")
+            pass
 
     home = Frame(tkWindow, bg='black', width=950, height=600)
     home.place(x=200, y=70)
@@ -442,6 +473,28 @@ def traffic_signal_frame():
     def switch_to_home():
         traffic_signal_frame.pack_forget()
         home()
+    
+    def find_violations():
+        # Clear any existing labels in the violations_frame
+        for widget in violations_frame.winfo_children():
+            widget.destroy()
+
+        # Get the search input
+        search_input = search_entry.get()
+
+        # Add text labels for each violation in violations that matches the search input
+        row_num = 0
+        for violation in violations.findall("violation"):
+            label_texts = [f"{child.tag}: {child.text}" for child in violation]
+            labels_text = "\n".join(label_texts)
+            if search_input.lower() in labels_text.lower():
+                label = Label(violations_frame, text=labels_text, bg='black', fg='white')
+                label.grid(row=row_num, column=0, padx=10, pady=5, sticky='w')
+                row_num += 1
+
+        # Updating the scroll region when the content changes
+        violations_frame.update_idletasks()
+        canvas.config(scrollregion=canvas.bbox("all"))
 
     name = current_account.find("username").text
 
@@ -450,6 +503,12 @@ def traffic_signal_frame():
 
     title_label = Label(traffic_signal_frame, text="Traffic Signal Violations", bg='black', fg='white', font=('yu gothic ui', 13, 'bold'))
     title_label.place(x=420, y=100)
+
+    # Create a search entry and button
+    search_entry = Entry(traffic_signal_frame, width=20)
+    search_entry.place(x=610, y=120)
+    search_button = Button(traffic_signal_frame, text="Find", command=find_violations)
+    search_button.place(x=735, y=117)
 
     # creating a canvas to display violation details
     canvas = Canvas(tkWindow, bg='black', bd=0, highlightthickness=0)
@@ -492,6 +551,30 @@ def speed_frame():
     def switch_to_home(speed_frame):
         speed_frame.pack_forget()
         home()
+
+    def find_violations():
+        # Clear any existing labels in the violations_frame
+        for widget in violations_frame.winfo_children():
+            widget.destroy()
+
+        # Get the search input
+        search_input = search_entry.get()
+
+        # Add text labels for each violation in violations that matches the search input
+        row_num = 0
+        for violation in violations.findall("violation"):
+            label_texts = [f"{child.tag}: {child.text}" for child in violation]
+            labels_text = "\n".join(label_texts)
+            if search_input.lower() in labels_text.lower():
+                label = Label(violations_frame, text=labels_text, bg='black', fg='white')
+                label.grid(row=row_num, column=0, padx=10, pady=5, sticky='w')
+                row_num += 1
+
+        # Updating the scroll region when the content changes
+        violations_frame.update_idletasks()
+        canvas.config(scrollregion=canvas.bbox("all"))
+
+    name = current_account.find("username").text
     
     speed_frame = Frame(tkWindow, bg='black', width=950, height=600)
     speed_frame.place(x=200, y=70)
@@ -499,9 +582,15 @@ def speed_frame():
     title_label = Label(speed_frame, text="Speed Violations", bg='black', fg='white', font=('yu gothic ui', 13, 'bold'))
     title_label.place(x=420, y=100)
 
+    # Create a search entry and button
+    search_entry = Entry(speed_frame, width=20)
+    search_entry.place(x=590, y=120)
+    search_button = Button(speed_frame, text="Find", command=find_violations)
+    search_button.place(x=720, y=120)
+
     # Create a canvas with a vertical scrollbar
     canvas = Canvas(tkWindow, bg='black', bd=0, highlightthickness=0)
-    canvas.place(x=440, y=230, width=470, height=270)
+    canvas.place(x=600, y=230, width=470, height=270)
 
     scrollbar = Scrollbar(tkWindow, command=canvas.yview)
     scrollbar.place(x=910, y=230, height=270)
@@ -513,15 +602,27 @@ def speed_frame():
     violations_frame = Frame(canvas, bg='black')
     canvas.create_window((0, 0), window=violations_frame, anchor=NW)
 
-    # Example: Add some labels to simulate content
-    for i in range(20):
-        label = Label(violations_frame, text=f"Violation {i}", bg='black', fg='white')
-        label.grid(row=i, column=0, padx=10, pady=5, sticky='w')
+    # Read the existing XML file via creating a tree
+    tree = ET.parse(f"{name}_speed.xml")
 
-    # Update the scroll region when the content changes
+    # obtain root
+    violations = tree.getroot()
+
+    # Clear any existing labels in the violations_frame
+    for widget in violations_frame.winfo_children():
+        widget.destroy()
+
+    # Add text labels for each violation in violations
+    for row_num, violation in enumerate(violations.findall("violation")):
+        label_texts = [f"{child.tag}: {child.text}" for child in violation]
+        labels_text = "\n".join(label_texts)
+        label = Label(violations_frame, text=labels_text, bg='black', fg='white')
+        label.grid(row=row_num, column=0, padx=10, pady=5, sticky='w')
+    
+    # Updating the scroll region when the content changes
     violations_frame.update_idletasks()
     canvas.config(scrollregion=canvas.bbox("all"))
-    
+
     back = Button(speed_frame, text='Back', font=('yu gothic ui', 13, 'bold'), width=10, bd=0, bg='black', cursor='hand2', fg='white', command=lambda: switch_to_home(speed_frame))
     back.place(x=445, y=500) 
 

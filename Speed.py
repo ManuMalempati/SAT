@@ -6,24 +6,24 @@ import os
 import xml.etree.ElementTree as ET
 from cryptography.fernet import Fernet
 
-def process_signal_footage(name, footage, focus_x_left, focus_x_right, focus_y_top, focus_y_bottom, counter_line_position_y, counter_line_left_position_x, counter_line_right_position_x, location):
+def process_speed_footage(name, footage, focus_x_left, focus_x_right, focus_y_top, focus_y_bottom, speed_limit, counter_line_position_y, counter_line_left_position_x, counter_line_right_position_x, actual_reference_object_width, actual_reference_object_height, location):
 
     filename_with_extension = os.path.basename(footage)
 
     cap = cv2.VideoCapture(filename_with_extension)
 
     # Read the existing XML file via creating a tree
-    tree = ET.parse(f"{name}_traffic_signal.xml")
+    tree = ET.parse(f"{name}_speed.xml")
     # obtain root
     violations = tree.getroot()
     # clear previous violations for fresh record
     violations.clear()
-    xml_file_path = f"{name}_traffic_signal.xml"
+    xml_file_path = f"{name}_speed.xml"
     deleted_addresses = [evidence.text for evidence in ET.parse(xml_file_path).iter('Evidence') if os.path.exists(evidence.text)]
     [os.remove(evidence) for evidence in deleted_addresses]
 
     # Perform any necessary operations on the tree object
-    tree.write(f"{name}_traffic_signal.xml")
+    tree.write(f"{name}_speed.xml")
 
     # define the color thresholds for red and green
     red_lower = (0, 0, 150)
@@ -32,6 +32,17 @@ def process_signal_footage(name, footage, focus_x_left, focus_x_right, focus_y_t
     green_upper = (50, 255, 50)
     yellow_lower = (0, 150, 150)
     yellow_upper = (50, 255, 255)
+
+    # calculating size of reference object in pixels
+    reference_object_width_pixels = focus_x_right - focus_x_left
+    reference_object_height_pixels = focus_y_bottom - focus_y_top
+
+    # Distance conversion factor (each pixel = how much distance)
+    width_dcf = actual_reference_object_width/reference_object_width_pixels
+    height_dcf = actual_reference_object_height/reference_object_height_pixels
+
+    # DCF average
+    dcf = (width_dcf + height_dcf)/2
 
     # Minimum width and height of bounding rectangle
     min_width_rect = 80
@@ -84,9 +95,6 @@ def process_signal_footage(name, footage, focus_x_left, focus_x_right, focus_y_t
         if not ret:
             break
 
-        # resize the frame for faster processing
-        # frame1 = cv2.resize(frame1, (1280, 720))
-
         # ------------------------------------------TRAFFIC SIGNAL DETECTION CODE------------------------------------------------------------------
 
         # apply color thresholding to detect red and green pixels
@@ -106,7 +114,7 @@ def process_signal_footage(name, footage, focus_x_left, focus_x_right, focus_y_t
             colour = "YELLOW"
         else:
             colour = "GREEN"
-        #colour = "RED" # Hardcode colour for testing
+        # colour = "RED" # Hardcode colour for testing
         
         # Colour label
         cv2.putText(frame1, colour, (10,50), 0, 1, (255,0,0), 2) # text label
@@ -129,51 +137,52 @@ def process_signal_footage(name, footage, focus_x_left, focus_x_right, focus_y_t
 
         # Detector Line creation
         cv2.line(frame1, (counter_line_left_position_x,counter_line_position_y), (counter_line_right_position_x,counter_line_position_y), (0,255,0), 4) # horizontal positions specified
-        cv2.line(frame1, (counter_line_left_position_x,counter_line_position_y - 10), (counter_line_right_position_x,counter_line_position_y - 10), (0,255,0), 4) # horizontal positions specified
-        
-        for (i,c) in enumerate(countershape): # for each vehicle
-            (x,y,w,h) = cv2.boundingRect(c) # dimensions of the bounding rectangle we want to add for each vehicle
+        cv2.line(frame1, (counter_line_left_position_x,counter_line_position_y - 20), (counter_line_right_position_x,counter_line_position_y - 20), (0,255,0), 4) # horizontal positions specified
 
-            validate_counter = (w>=min_width_rect) and (h>=min_height_rect) # The bounding rect function looks for an object that is of minimum specified dimensions (cars in this case)
+        # Initialise required variables
+        speed = None
+
+        for (i, c) in enumerate(countershape): # for each vehicle 
+            (x, y, w, h) = cv2.boundingRect(c) # dimensions of the bounding rectangle we want to add for each vehicle
+            validate_counter = (w >= min_width_rect) and (h >= min_height_rect) # The bounding rect function looks for an object that is of minimum specified dimensions (cars in this case)
             if not validate_counter: # If vehicle not detected
                 continue
 
-            cv2.rectangle(frame1,(x,y),(x+w, y+h),(0,255,0), 4) # rectangle specifications
-            center = center_pos(x,y,w,h) # stores centre position of rectangle
-            detections.append(center)
+            cv2.rectangle(frame1, (x, y), (x+w, y+h), (0, 255, 0), 4) # rectangle specifications
+            
+            center = center_pos(x, y, w, h) # stores centre position of rectangle
 
-            if center[0] > counter_line_left_position_x and center[0] < counter_line_right_position_x and center[1] < (counter_line_position_y + 6) and center[1] > (counter_line_position_y - 6): # If vehicle within line
-                if colour == "RED":
-                    if not last_detection_status: # If vehicle has not already been detected
-                        violations_list = violations.findall("violation")
-                        # capture screenshot with image name as detection(counter length)
-                        capture_screenshot(frame1, f"traffic_detection_{name}_{len(violations_list) + 1}.png")
-                        # saving the captured image
-                        detection_image = f"traffic_detection_{name}_{len(violations_list) + 1}.png"
-                        # time of capture
-                        detection_time = display_time()
-                        detection_details.append({"Reg": "", "Time": detection_time[:10], "Date": detection_time[11:], "Location": location, "Evidence": detection_image}) # append timestamp
+            if center[0] > counter_line_left_position_x and center[0] < counter_line_right_position_x and center[1] < (counter_line_position_y + offset) and center[1] > (counter_line_position_y - offset): # If vehicle within first line
+                first_time = datetime.now()
+                cv2.line(frame1, (counter_line_left_position_x, counter_line_position_y), (counter_line_right_position_x, counter_line_position_y), (0, 127, 255), 4) # line that flashes when object/vehicle detected
 
-                        new_violation = ET.SubElement(violations, "violation")
+            if center[0] > counter_line_left_position_x and center[0] < counter_line_right_position_x and center[1] < (counter_line_position_y + offset - 20) and center[1] > (counter_line_position_y - offset - 20): # If vehicle within second line
+                second_time = datetime.now()
+                # distance between line sis 20 pixels which is converted to actual distance through dcf
+                speed = round(20*dcf/(second_time - first_time).total_seconds(), 2)
+                if speed > speed_limit:
+                    violations_list = violations.findall("violation")
+                    # capture screenshot with image name as detection(counter length)
+                    capture_screenshot(frame1, f"speed_detection_{name}_{len(violations_list) + 1}.png")
+                    # saving the captured image
+                    detection_image = f"speed_detection_{name}_{len(violations_list) + 1}.png"
+                    # time of capture
+                    detection_time = display_time()
+                    detection_details.append({"Reg": "", "Time": detection_time[:10], "Date": detection_time[11:], "Location": location, "Recordedspeed": speed, "Evidence": detection_image}) # append timestamp
+                    new_violation = ET.SubElement(violations, "violation")
 
-                        # Iterate through each dictionary in the detection_details list
-                        for detection_dict in detection_details:
-                            # Iterate through the dictionary and create sub-elements for each key-value pair
-                            for key, value in detection_dict.items():
-                                sub_element = ET.SubElement(new_violation, key)
-                                sub_element.text = str(value)  # Convert the value to a string before storing
+                    # Iterate through each dictionary in the detection_details list
+                    for detection_dict in detection_details:
+                        # Iterate through the dictionary and create sub-elements for each key-value pair
+                        for key, value in detection_dict.items():
+                            sub_element = ET.SubElement(new_violation, key)
+                            sub_element.text = str(value)  # Convert the value to a string before storing
 
-                        # update file with contents
-                        tree.write(f"{name}_traffic_signal.xml")
+                    # update file with contents
+                    tree.write(f"{name}_speed.xml")
+                cv2.line(frame1, (counter_line_left_position_x, counter_line_position_y - 20), (counter_line_right_position_x, counter_line_position_y - 20), (0, 127, 255), 4) # line that flashes when object/vehicle detected
 
-                        cv2.line(frame1, (counter_line_left_position_x,counter_line_position_y), (counter_line_right_position_x,counter_line_position_y), (0,127,255), 4) # line that flashes when object/vehicle detected
-                    last_detection_status = True
-                else:
-                    last_detection_status = False
-            else: # vehicle leaves the line, next vehicle is ready for detection
-                last_detection_status = False
-
-            cv2.circle(frame1,center,4,(0,255,0),-1) # draws a circle at the center of each rectangle
+            cv2.circle(frame1, center, 4, (0, 255, 0), -1) # draws a circle at the center of each rectangle
         
         cv2.putText(frame1, "Traffic System", (500,70), cv2.FONT_HERSHEY_SIMPLEX, 2, (0,0,255), 4) # Heading
 

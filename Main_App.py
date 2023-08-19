@@ -7,6 +7,7 @@ from tkinter import filedialog
 from Trafficlight import process_signal_footage
 from Speed import process_speed_footage
 import threading
+from Update_all import update_all_violations
 
 #------------------------------ VARIABLES SUBJECT TO CHANGE FOR EACH VIDEO-------------------------
 # Focus postion of traffic lights (subject to change), rectangle dimensions 
@@ -15,7 +16,7 @@ import threading
 focus_x_left, focus_x_right, focus_y_top, focus_y_bottom = 80, 150, 220, 300
 
 # cm/s
-speed_limit = 50
+speed_limit = 0
 
 # video1 dimensions: 550, 700, 1200
 # Position of line used to count the vehicles (subject to change depending on road and location of intersection)
@@ -422,8 +423,8 @@ def home():
             process_signal_footage(name, footage_file, focus_x_left, focus_x_right, focus_y_top, focus_y_bottom, counter_line_position_y, counter_line_left_position_x, counter_line_right_position_x, location)
             # process footage for speed violations by calling the function from Speed.py file
             process_speed_footage(name, footage_file, focus_x_left, focus_x_right, focus_y_top, focus_y_bottom, speed_limit, counter_line_position_y, counter_line_left_position_x, counter_line_right_position_x, actual_reference_object_width, actual_reference_object_height, location)
+            update_all_violations(name)
 
-            # Update the footage label after processing is done
             footage_label.config(text="Uploaded footage: " + os.path.basename(file_path))
 
         # Prompt the user to select a new file path
@@ -546,7 +547,6 @@ def traffic_signal_frame():
     back = Button(traffic_signal_frame, text='Back', font=('yu gothic ui', 13, 'bold'), width=10, bd=0, bg='black', cursor='hand2', fg='white', command=switch_to_home)
     back.place(x=445, y=500)
 
-# speed violations frame
 def speed_frame():
     def switch_to_home(speed_frame):
         speed_frame.pack_forget()
@@ -624,45 +624,134 @@ def speed_frame():
     canvas.config(scrollregion=canvas.bbox("all"))
 
     back = Button(speed_frame, text='Back', font=('yu gothic ui', 13, 'bold'), width=10, bd=0, bg='black', cursor='hand2', fg='white', command=lambda: switch_to_home(speed_frame))
-    back.place(x=445, y=500) 
+    back.place(x=445, y=500)
 
 # all violations frame
 def all_frame():
-    def switch_to_home(all_frame):
+    def switch_to_home():
         all_frame.pack_forget()
         home()
-    
+
+    def find_violations():
+        search_input = search_entry.get().lower()
+
+        for widget in violations_frame.winfo_children():
+            widget.destroy()
+
+        row_num = 0
+
+        for registration_number in all_violations_root:
+            reg_number = registration_number.attrib["number"]
+
+            violation_texts = [f"{row_num + 1}. Registration Number - {reg_number}\n\n"]
+            violation_count = 0  # Counter for matching violations
+
+            for i, violation in enumerate(registration_number.findall("Violation"), start=1):
+                time = violation.find("Time").text
+                date = violation.find("Date").text
+                location = violation.find("Location").text
+                v_type = violation.find("Type").text
+
+                if v_type == "Speed Violation":
+                    speed = violation.find("Speed").text
+                    violation_texts.append(
+                        f"Violation {i}\n"
+                        f"Time - {time}\n"
+                        f"Date - {date}\n"
+                        f"Location - {location}\n"
+                        f"Type - {v_type}\n"
+                        f"Speed - {speed}\n\n"
+                    )
+                else:
+                    violation_texts.append(
+                        f"Violation {i}\n"
+                        f"Time - {time}\n"
+                        f"Date - {date}\n"
+                        f"Location - {location}\n"
+                        f"Type - {v_type}\n\n"
+                    )
+
+                if search_input in "\n".join(violation_texts).lower():
+                    violation_count += 1
+
+            if violation_count > 0:
+                labels_text = "\n".join(violation_texts)
+                label = Label(violations_frame, text=labels_text, bg='black', fg='white')
+                label.grid(row=row_num, column=0, padx=10, pady=5, sticky='w')
+                row_num += len(registration_number.findall("Violation")) + 1
+
+    name = current_account.find("username").text
+
     all_frame = Frame(tkWindow, bg='black', width=950, height=600)
     all_frame.place(x=200, y=70)
 
     title_label = Label(all_frame, text="All Violations", bg='black', fg='white', font=('yu gothic ui', 13, 'bold'))
     title_label.place(x=420, y=100)
 
-    # Create a canvas with a vertical scrollbar
+    search_entry = Entry(all_frame, width=20)
+    search_entry.place(x=590, y=120)
+    search_button = Button(all_frame, text="Find", command=find_violations)
+    search_button.place(x=720, y=120)
+
     canvas = Canvas(tkWindow, bg='black', bd=0, highlightthickness=0)
-    canvas.place(x=440, y=230, width=470, height=270)
+    canvas.place(x=600, y=230, width=470, height=270)
 
     scrollbar = Scrollbar(tkWindow, command=canvas.yview)
     scrollbar.place(x=910, y=230, height=270)
 
-    # Link the scrollbar to the canvas
     canvas.config(yscrollcommand=scrollbar.set)
 
-    # Create a frame inside the canvas to hold the traffic signal violations content
     violations_frame = Frame(canvas, bg='black')
     canvas.create_window((0, 0), window=violations_frame, anchor=NW)
 
-    # Example: Add some labels to simulate content
-    for i in range(20):
-        label = Label(violations_frame, text=f"Violation {i}", bg='black', fg='white')
-        label.grid(row=i, column=0, padx=10, pady=5, sticky='w')
+    all_violations_tree = ET.parse(f"{name}_all.xml")
+    all_violations_root = all_violations_tree.getroot()
 
-    # Update the scroll region when the content changes
+    row_num = 0
+
+    for registration_number in all_violations_root:
+        reg_number = registration_number.attrib["number"]
+        violations = registration_number.findall("Violation")
+        violation_count = len(violations)
+
+        violation_texts = [f"{row_num + 1}. Registration Number - {reg_number}\n\n"]
+
+        for i, violation in enumerate(violations, start=1):
+            time = violation.find("Time").text
+            date = violation.find("Date").text
+            location = violation.find("Location").text
+            v_type = violation.find("Type").text
+
+            if v_type == "Speed Violation":
+                speed = violation.find("Speed").text
+                violation_texts.append(
+                    f"Violation {i}\n"
+                    f"Time - {time}\n"
+                    f"Date - {date}\n"
+                    f"Location - {location}\n"
+                    f"Type - {v_type}\n"
+                    f"Speed - {speed}\n\n"
+                )
+            else:
+                violation_texts.append(
+                    f"Violation {i}\n"
+                    f"Time - {time}\n"
+                    f"Date - {date}\n"
+                    f"Location - {location}\n"
+                    f"Type - {v_type}\n\n"
+                )
+
+        violation_texts.append(f"Total Violations - {violation_count}\n")
+        labels_text = "\n".join(violation_texts)
+        label = Label(violations_frame, text=labels_text, bg='black', fg='white')
+        label.grid(row=row_num, column=0, padx=10, pady=5, sticky='w')
+        row_num += len(violations) + 1
+
     violations_frame.update_idletasks()
     canvas.config(scrollregion=canvas.bbox("all"))
-    
-    back = Button(all_frame, text='Back', font=('yu gothic ui', 13, 'bold'), width=10, bd=0, bg='black', cursor='hand2', fg='white', command=lambda: switch_to_home(all_frame))
-    back.place(x=445, y=500)  
+
+    back = Button(all_frame, text='Back', font=('yu gothic ui', 13, 'bold'), width=10, bd=0, bg='black', cursor='hand2', fg='white', command=switch_to_home)
+    back.place(x=445, y=500)
 
 # First display login frame
 login_frame()

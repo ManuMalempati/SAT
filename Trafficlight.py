@@ -5,6 +5,7 @@ from PIL import Image
 import os
 import xml.etree.ElementTree as ET
 from cryptography.fernet import Fernet
+from Licence import extract_license_plate
 
 def process_signal_footage(name, footage, focus_x_left, focus_x_right, focus_y_top, focus_y_bottom, counter_line_position_y, counter_line_left_position_x, counter_line_right_position_x, location):
 
@@ -150,10 +151,10 @@ def process_signal_footage(name, footage, focus_x_left, focus_x_right, focus_y_t
                         capture_screenshot(frame1, f"traffic_detection_{name}_{len(violations_list) + 1}.png")
                         # saving the captured image
                         detection_image = f"traffic_detection_{name}_{len(violations_list) + 1}.png"
+                        licence_number = extract_license_plate(detection_image)
                         # time of capture
                         detection_time = display_time()
-                        detection_details.append({"Reg": "", "Time": detection_time[:10], "Date": detection_time[11:], "Location": location, "Evidence": detection_image}) # append timestamp
-
+                        detection_details.append({"Reg": licence_number, "Time": detection_time[:10], "Date": detection_time[11:], "Location": location, "Evidence": detection_image}) # append timestamp
                         new_violation = ET.SubElement(violations, "violation")
 
                         # Iterate through each dictionary in the detection_details list
@@ -188,7 +189,7 @@ def process_signal_footage(name, footage, focus_x_left, focus_x_right, focus_y_t
 
         if cv2.waitKey(30) == 27: # press esc to exit window
             break
-     
+    
     # Close captured video
     cv2.destroyAllWindows()
     cap.release()

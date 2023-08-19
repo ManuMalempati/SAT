@@ -5,6 +5,7 @@ from PIL import Image
 import os
 import xml.etree.ElementTree as ET
 from cryptography.fernet import Fernet
+from Licence import extract_license_plate
 
 def process_speed_footage(name, footage, focus_x_left, focus_x_right, focus_y_top, focus_y_bottom, speed_limit, counter_line_position_y, counter_line_left_position_x, counter_line_right_position_x, actual_reference_object_width, actual_reference_object_height, location):
 
@@ -18,9 +19,19 @@ def process_speed_footage(name, footage, focus_x_left, focus_x_right, focus_y_to
     violations = tree.getroot()
     # clear previous violations for fresh record
     violations.clear()
-    xml_file_path = f"{name}_speed.xml"
-    deleted_addresses = [evidence.text for evidence in ET.parse(xml_file_path).iter('Evidence') if os.path.exists(evidence.text)]
-    [os.remove(evidence) for evidence in deleted_addresses]
+    # Initialize an empty list to store the addresses of deleted files
+    deleted_addresses = []
+    # Iterate over each 'Evidence' element in the XML tree
+    for evidence in tree.iter('Evidence'):
+        # Check if the file exists
+        if os.path.exists(evidence.text):
+            # If it does, add its address to the list
+            deleted_addresses.append(evidence.text)
+
+    # Now, iterate over each address in the list
+    for evidence in deleted_addresses:
+        # And remove the corresponding file
+        os.remove(evidence)
 
     # Perform any necessary operations on the tree object
     tree.write(f"{name}_speed.xml")
@@ -141,8 +152,10 @@ def process_speed_footage(name, footage, focus_x_left, focus_x_right, focus_y_to
 
         # Initialise required variables
         speed = None
+        overlap = False
 
-        for (i, c) in enumerate(countershape): # for each vehicle 
+        for (i, c) in enumerate(countershape): # for each vehicle
+            overlap = False
             (x, y, w, h) = cv2.boundingRect(c) # dimensions of the bounding rectangle we want to add for each vehicle
             validate_counter = (w >= min_width_rect) and (h >= min_height_rect) # The bounding rect function looks for an object that is of minimum specified dimensions (cars in this case)
             if not validate_counter: # If vehicle not detected
@@ -166,17 +179,22 @@ def process_speed_footage(name, footage, focus_x_left, focus_x_right, focus_y_to
                     capture_screenshot(frame1, f"speed_detection_{name}_{len(violations_list) + 1}.png")
                     # saving the captured image
                     detection_image = f"speed_detection_{name}_{len(violations_list) + 1}.png"
+                    licence_number = extract_license_plate(detection_image)
                     # time of capture
                     detection_time = display_time()
-                    detection_details.append({"Reg": "", "Time": detection_time[:10], "Date": detection_time[11:], "Location": location, "Recordedspeed": speed, "Evidence": detection_image}) # append timestamp
-                    new_violation = ET.SubElement(violations, "violation")
+                    for details in detection_details:
+                        if details["Time"] == detection_time[:10]:
+                            overlap = True
+                    if not overlap:
+                        detection_details.append({"Reg": licence_number, "Time": detection_time[:10], "Date": detection_time[11:], "Location": location, "Recordedspeed": f"{speed} cm/s", "Evidence": detection_image}) # append timestamp
+                        new_violation = ET.SubElement(violations, "violation")
 
-                    # Iterate through each dictionary in the detection_details list
-                    for detection_dict in detection_details:
-                        # Iterate through the dictionary and create sub-elements for each key-value pair
-                        for key, value in detection_dict.items():
-                            sub_element = ET.SubElement(new_violation, key)
-                            sub_element.text = str(value)  # Convert the value to a string before storing
+                        # Iterate through each dictionary in the detection_details list
+                        for detection_dict in detection_details:
+                            # Iterate through the dictionary and create sub-elements for each key-value pair
+                            for key, value in detection_dict.items():
+                                sub_element = ET.SubElement(new_violation, key)
+                                sub_element.text = str(value)  # Convert the value to a string before storing
 
                     # update file with contents
                     tree.write(f"{name}_speed.xml")

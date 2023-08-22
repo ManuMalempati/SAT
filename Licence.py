@@ -41,6 +41,6 @@ def extract_license_plate(image_path):
     return
 
 # uncomment for test run
-# img = "car1.png"
+# img = "car2.jpg"
 # pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 # extract_license_plate(img)

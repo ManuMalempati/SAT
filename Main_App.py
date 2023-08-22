@@ -8,6 +8,14 @@ from Trafficlight import process_signal_footage
 from Speed import process_speed_footage
 import threading
 from Update_all import update_all_violations
+from tkinter import messagebox
+import pygame
+
+# Kgf Music
+pygame.mixer.init()
+# App Kgf music.mp3
+pygame.mixer.music.load("App Hukum.mp3")
+pygame.mixer.music.play(loops=100)
 
 #------------------------------ VARIABLES SUBJECT TO CHANGE FOR EACH VIDEO-------------------------
 # Focus postion of traffic lights (subject to change), rectangle dimensions 
@@ -98,12 +106,16 @@ def signup_frame():
     user_image = Image.open("user image.png")
     photo2 = ImageTk.PhotoImage(user_image)
     user_image_label = Label(signup_frame, image=photo2, bg='black')
-    user_image_label.image = photo2  # Keep a referencing to the image object
+    user_image_label.image = photo2 
     user_image_label.place(x=620, y=40)
 
     # Signup label
     signup_label = Label(signup_frame, text="Register", bg='black', fg='white', font=('yu gothic ui', 13, 'bold'))
     signup_label.place(x=660, y=150)
+
+    # Info button function
+    def show_info(message):
+        messagebox.showinfo("Input Guidelines", message)
 
     # Organisation
     organisation_label = Label(signup_frame, text="Organisation", bg='black', fg='#4f4e4d', font=('yu gothic ui', 13, 'bold'))
@@ -112,6 +124,8 @@ def signup_frame():
     organisation_entry.place(x=535, y=220, width=270)
     organisation_line = Canvas(signup_frame, width=300, height=2, bg='white', highlightthickness=0)
     organisation_line.place(x=530, y=249)
+    organisation_info_button = Button(signup_frame, text="?", font=('yu gothic ui', 10, 'bold'), width=2, bd=0, bg='black', fg='white', cursor='hand2', command=lambda: show_info("Organization name is required."))
+    organisation_info_button.place(x=810, y=220)
 
     # Username
     username_label = Label(signup_frame, text="Username", bg='black', fg='#4f4e4d', font=('yu gothic ui', 13, 'bold'))
@@ -120,6 +134,8 @@ def signup_frame():
     username_entry.place(x=535, y=300, width=270)
     username_line = Canvas(signup_frame, width=300, height=2, bg='white', highlightthickness=0)
     username_line.place(x=530, y=329)
+    username_info_button = Button(signup_frame, text="?", font=('yu gothic ui', 10, 'bold'), width=2, bd=0, bg='black', fg='white', cursor='hand2', command=lambda: show_info("Username should be unique."))
+    username_info_button.place(x=810, y=300)
 
     # Password
     password_label = Label(signup_frame, text="Password", bg='black', fg='#4f4e4d', font=('yu gothic ui', 13, 'bold'))
@@ -128,6 +144,8 @@ def signup_frame():
     password_entry.place(x=535, y=385, width=270)
     password_line = Canvas(signup_frame, width=300, height=2, bg='white', highlightthickness=0)
     password_line.place(x=530, y=414)
+    password_info_button = Button(signup_frame, text="?", font=('yu gothic ui', 10, 'bold'), width=2, bd=0, bg='black', fg='white', cursor='hand2', command=lambda: show_info("Password needs to be at least 8 characters long."))
+    password_info_button.place(x=810, y=385)
 
     # Password re-enter
     password2_label = Label(signup_frame, text="Re-enter password", bg='black', fg='#4f4e4d', font=('yu gothic ui', 13, 'bold'))
@@ -136,6 +154,8 @@ def signup_frame():
     password2_entry.place(x=535, y=470, width=270)
     password2_line = Canvas(signup_frame, width=300, height=2, bg='white', highlightthickness=0)
     password2_line.place(x=530, y=500)
+    password2_info_button = Button(signup_frame, text="?", font=('yu gothic ui', 10, 'bold'), width=2, bd=0, bg='black', fg='white', cursor='hand2', command=lambda: show_info("Password and Re-entered Password must match."))
+    password2_info_button.place(x=810, y=470)
 
     # Status label shows the status of account creation
     status_label = Label(signup_frame, bg='black', fg='white')
@@ -680,6 +700,69 @@ def all_frame():
                 label.grid(row=row_num, column=0, padx=10, pady=5, sticky='w')
                 row_num += len(registration_number.findall("Violation")) + 1
 
+    def sort_by_frequency():
+        sorted_violations = sorted(
+            all_violations_root,
+            key=lambda registration: len(registration.findall("Violation")),
+            reverse=True
+        )
+        update_violations_frame(sorted_violations)
+
+    def sort_by_time():
+        sorted_violations = sorted(
+            all_violations_root,
+            key=lambda registration: min([
+                violation.find("Time").text for violation in registration.findall("Violation")
+            ])
+        )
+        update_violations_frame(sorted_violations)
+
+    def update_violations_frame(sorted_violations):
+        for widget in violations_frame.winfo_children():
+            widget.destroy()
+
+        row_num = 0
+        for registration_number in sorted_violations:
+            reg_number = registration_number.attrib["number"]
+            violations = registration_number.findall("Violation")
+            violation_count = len(violations)
+
+            violation_texts = [f"{row_num + 1}. Registration Number - {reg_number}\n\n"]
+
+            for i, violation in enumerate(violations, start=1):
+                time = violation.find("Time").text
+                date = violation.find("Date").text
+                location = violation.find("Location").text
+                v_type = violation.find("Type").text
+
+                if v_type == "Speed Violation":
+                    speed = violation.find("Speed").text
+                    violation_texts.append(
+                        f"Violation {i}\n"
+                        f"Time - {time}\n"
+                        f"Date - {date}\n"
+                        f"Location - {location}\n"
+                        f"Type - {v_type}\n"
+                        f"Speed - {speed}\n\n"
+                    )
+                else:
+                    violation_texts.append(
+                        f"Violation {i}\n"
+                        f"Time - {time}\n"
+                        f"Date - {date}\n"
+                        f"Location - {location}\n"
+                        f"Type - {v_type}\n\n"
+                    )
+
+            violation_texts.append(f"Total Violations - {violation_count}\n")
+            labels_text = "\n".join(violation_texts)
+            label = Label(violations_frame, text=labels_text, bg='black', fg='white')
+            label.grid(row=row_num, column=0, padx=10, pady=5, sticky='w')
+            row_num += len(violations) + 1
+
+        violations_frame.update_idletasks()
+        canvas.config(scrollregion=canvas.bbox("all"))
+
     name = current_account.find("username").text
 
     all_frame = Frame(tkWindow, bg='black', width=950, height=600)
@@ -692,6 +775,12 @@ def all_frame():
     search_entry.place(x=590, y=120)
     search_button = Button(all_frame, text="Find", command=find_violations)
     search_button.place(x=720, y=120)
+
+    frequency_button = Button(all_frame, text='Sort-Frequency', font=('yu gothic ui', 13, 'bold'), width=15, bd=0, bg='black', cursor='hand2', fg='white', command=sort_by_frequency)
+    frequency_button.place(x=300, y=500)
+
+    time_button = Button(all_frame, text='Sort-Time', font=('yu gothic ui', 13, 'bold'), width=15, bd=0, bg='black', cursor='hand2', fg='white', command=sort_by_time)
+    time_button.place(x=580, y=500)
 
     canvas = Canvas(tkWindow, bg='black', bd=0, highlightthickness=0)
     canvas.place(x=600, y=230, width=470, height=270)
@@ -755,11 +844,6 @@ def all_frame():
 
 # First display login frame
 login_frame()
-
-# for account in root.findall("account"):
-#     if (account.find("username").text == "Manu") and (account.find("password").text == "12345678"):
-#         current_account = account
-#         home()
 
 # Run
 tkWindow.mainloop()

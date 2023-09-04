@@ -10,16 +10,17 @@ import threading
 from Update_all import update_all_violations
 from tkinter import messagebox
 import pygame
+import re
 
 # Kgf Music
-pygame.mixer.init()
-# App Kgf music.mp3
-pygame.mixer.music.load("App Hukum.mp3")
-pygame.mixer.music.play(loops=100)
+# pygame.mixer.init()
+# # App Kgf music.mp3
+# pygame.mixer.music.load("App Hukum.mp3")
+# pygame.mixer.music.play(loops=100)
 
 #------------------------------ VARIABLES SUBJECT TO CHANGE FOR EACH VIDEO-------------------------
-# Focus postion of traffic lights (subject to change), rectangle dimensions 
-# red & yellow dimensions: 60, 150, 200, 300 
+# Focus postion of traffic lights (subject to change), rectangle dimensionss
+# red & yellow dimensions: 60, 150, 200, 300
 # video2 dimensions: 600, 850, 0, 600
 focus_x_left, focus_x_right, focus_y_top, focus_y_bottom = 80, 150, 220, 300
 
@@ -144,7 +145,7 @@ def signup_frame():
     password_entry.place(x=535, y=385, width=270)
     password_line = Canvas(signup_frame, width=300, height=2, bg='white', highlightthickness=0)
     password_line.place(x=530, y=414)
-    password_info_button = Button(signup_frame, text="?", font=('yu gothic ui', 10, 'bold'), width=2, bd=0, bg='black', fg='white', cursor='hand2', command=lambda: show_info("Password needs to be at least 8 characters long."))
+    password_info_button = Button(signup_frame, text="?", font=('yu gothic ui', 10, 'bold'), width=2, bd=0, bg='black', fg='white', cursor='hand2', command=lambda: show_info("Password needs to be at least 8 characters long, contain an uppercase, a lowercase character and a digit"))
     password_info_button.place(x=810, y=385)
 
     # Password re-enter
@@ -189,6 +190,21 @@ def signup_frame():
         # Password validation
         if len(password) < 8:
             status_label.config(text="Password needs to contain a minimum of 8 characters")
+            status_label.place(x=550, y=175)
+            return
+        
+        if not re.search(r"[A-Z]", password):
+            status_label.config(text="Password needs to contain an uppercase letter")
+            status_label.place(x=550, y=175)
+            return
+        
+        if not re.search(r"[a-z]", password):
+            status_label.config(text="Password needs to contain an lowercase letter")
+            status_label.place(x=550, y=175)
+            return
+        
+        if not re.search(r"\d", password):
+            status_label.config(text="Password needs to contain a digit")
             status_label.place(x=550, y=175)
             return
         
@@ -754,7 +770,7 @@ def all_frame():
                         f"Type - {v_type}\n\n"
                     )
 
-            violation_texts.append(f"Total Violations - {violation_count}\n")
+            violation_texts.append(f"Total Violations: {violation_count}\n")
             labels_text = "\n".join(violation_texts)
             label = Label(violations_frame, text=labels_text, bg='black', fg='white')
             label.grid(row=row_num, column=0, padx=10, pady=5, sticky='w')
@@ -830,7 +846,7 @@ def all_frame():
                     f"Type - {v_type}\n\n"
                 )
 
-        violation_texts.append(f"Total Violations - {violation_count}\n")
+        violation_texts.append(f"Total Violations: {violation_count}\n")
         labels_text = "\n".join(violation_texts)
         label = Label(violations_frame, text=labels_text, bg='black', fg='white')
         label.grid(row=row_num, column=0, padx=10, pady=5, sticky='w')
